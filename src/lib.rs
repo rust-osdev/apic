@@ -6,11 +6,18 @@ use volatile::Volatile;
 
 pub mod registers;
 
-pub struct ApicRegisters {
-    base_addr: *mut (),
+pub struct ApicBase {
+    base_addr: *mut u8,
 }
 
-impl ApicRegisters {
+impl ApicBase {
+    /// base address must have 'static lifetime
+    pub const unsafe fn new(base_addr: *mut ()) -> Self {
+        Self {
+            base_addr: base_addr.cast(),
+        }
+    }
+
     pub fn id(&mut self) -> Volatile<&mut registers::Id> {
         unsafe { self.offset(Offset::Id) }
     }
@@ -27,27 +34,40 @@ impl ApicRegisters {
         unsafe { self.offset(Offset::ExtendedApicControl) }
     }
 
-    /*
-        pub fn task_priority(&mut self) -> Volatile<&mut registers::TaskPriority> {
-            unsafe { self.offset(Offset::TaskPriority) }
-        }
+    pub fn spurious_interrupt_vector(
+        &mut self,
+    ) -> Volatile<&mut registers::SpuriousInterruptVector> {
+        unsafe { self.offset(Offset::SpuriousInterruptVector) }
+    }
 
-        pub fn arbitration_priority(&mut self) -> Volatile<&mut registers::ArbitrationPriority> {
-            unsafe { self.offset(Offset::ArbitrationPriority) }
-        }
+    pub fn timer_local_vector_table_entry(
+        &mut self,
+    ) -> Volatile<&mut registers::TimerLocalVectorTableEntry> {
+        unsafe { self.offset(Offset::TimerLocalVectorTableEntry) }
+    }
 
-        pub fn processor_priority(&mut self) -> Volatile<&mut registers::ProcessorPriority> {
-            unsafe { self.offset(Offset::ProcessorPriority) }
-        }
+    pub fn timer_initial_count(&mut self) -> Volatile<&mut registers::TimerInitialCount> {
+        unsafe { self.offset(Offset::TimerInitialCount) }
+    }
 
-        pub fn end_of_interrupt(&mut self) -> Volatile<&mut registers::EndOfInterrupt> {
-            unsafe { self.offset(Offset::EndOfInterrupt) }
-        }
-    */
+    pub fn timer_divide_configuration(
+        &mut self,
+    ) -> Volatile<&mut registers::TimerDivideConfiguration> {
+        unsafe { self.offset(Offset::TimerDivideConfiguration) }
+    }
+
+    pub fn end_of_interrupt(&self) -> &'static registers::EndOfInterrupt {
+        let ptr = self.offset_ptr(Offset::EndOfInterrupt).cast();
+        unsafe { &*ptr }
+    }
 
     unsafe fn offset<T>(&mut self, offset: Offset) -> Volatile<&mut T> {
-        let ptr = self.base_addr.wrapping_add(offset as usize).cast();
+        let ptr = self.offset_ptr(offset).cast();
         Volatile::new(unsafe { &mut *ptr })
+    }
+
+    fn offset_ptr(&self, offset: Offset) -> *mut u8 {
+        self.base_addr.wrapping_add(offset as usize)
     }
 }
 

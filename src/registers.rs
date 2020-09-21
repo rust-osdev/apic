@@ -1,4 +1,4 @@
-use core::convert::TryInto;
+use core::{convert::TryInto, sync::atomic::AtomicU32, sync::atomic::Ordering};
 
 use bit_field::BitField;
 
@@ -87,5 +87,143 @@ impl ExtendedApicControl {
 
     pub fn enable_interrupt_enable_registers(&mut self, enable: bool) {
         self.0.set_bit(0, enable);
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+#[repr(transparent)]
+pub struct SpuriousInterruptVector(u32);
+
+impl SpuriousInterruptVector {
+    pub fn vector(&self) -> u8 {
+        self.0.get_bits(..8).try_into().unwrap()
+    }
+
+    pub fn set_vector(&mut self, vector: u8) {
+        self.0.set_bits(..8, vector.into());
+    }
+
+    pub fn apic_software_enabled(&self) -> bool {
+        self.0.get_bit(8)
+    }
+
+    pub fn enable_apic_software(&mut self, enable: bool) {
+        self.0.set_bit(8, enable);
+    }
+
+    pub fn focus_cpu_core_checking(&self) -> bool {
+        self.0.get_bit(9)
+    }
+
+    pub fn set_focus_cpu_core_checking(&mut self, value: bool) {
+        self.0.set_bit(9, value);
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+#[repr(transparent)]
+pub struct TimerLocalVectorTableEntry(u32);
+
+impl TimerLocalVectorTableEntry {
+    pub fn vector(&self) -> u8 {
+        self.0.get_bits(..8).try_into().unwrap()
+    }
+
+    pub fn set_vector(&mut self, vector: u8) {
+        self.0.set_bits(..8, vector.into());
+    }
+
+    pub fn delivery_status(&self) -> bool {
+        self.0.get_bit(12)
+    }
+
+    pub fn mask(&self) -> bool {
+        self.0.get_bit(16)
+    }
+
+    pub fn set_mask(&mut self, disable: bool) {
+        self.0.set_bit(16, disable);
+    }
+
+    pub fn timer_mode(&self) -> bool {
+        self.0.get_bit(17)
+    }
+
+    pub fn set_timer_mode(&mut self, periodic: bool) {
+        self.0.set_bit(17, periodic);
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+#[repr(transparent)]
+pub struct TimerInitialCount(u32);
+
+impl TimerInitialCount {
+    pub fn get(&self) -> u32 {
+        self.0
+    }
+
+    pub fn set(&mut self, inital_count: u32) {
+        self.0 = inital_count
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+#[repr(transparent)]
+pub struct TimerDivideConfiguration(u32);
+
+impl TimerDivideConfiguration {
+    pub fn get(&self) -> TimerDivideConfigurationValue {
+        let bit_0 = self.0.get_bit(0);
+        let bit_1 = self.0.get_bit(1);
+        let bit_3 = self.0.get_bit(3);
+        match (bit_3, bit_1, bit_0) {
+            (false, false, false) => TimerDivideConfigurationValue::Divide2,
+            (false, false, true) => TimerDivideConfigurationValue::Divide4,
+            (false, true, false) => TimerDivideConfigurationValue::Divide8,
+            (false, true, true) => TimerDivideConfigurationValue::Divide16,
+            (true, false, false) => TimerDivideConfigurationValue::Divide32,
+            (true, false, true) => TimerDivideConfigurationValue::Divide64,
+            (true, true, false) => TimerDivideConfigurationValue::Divide128,
+            (true, true, true) => TimerDivideConfigurationValue::Divide1,
+        }
+    }
+
+    pub fn set(&mut self, value: TimerDivideConfigurationValue) {
+        let (bit_3, bit_1, bit_0) = match value {
+            TimerDivideConfigurationValue::Divide2 => (false, false, false),
+            TimerDivideConfigurationValue::Divide4 => (false, false, true),
+            TimerDivideConfigurationValue::Divide8 => (false, true, false),
+            TimerDivideConfigurationValue::Divide16 => (false, true, true),
+            TimerDivideConfigurationValue::Divide32 => (true, false, false),
+            TimerDivideConfigurationValue::Divide64 => (true, false, true),
+            TimerDivideConfigurationValue::Divide128 => (true, true, false),
+            TimerDivideConfigurationValue::Divide1 => (true, true, true),
+        };
+        self.0.set_bit(0, bit_0);
+        self.0.set_bit(1, bit_1);
+        self.0.set_bit(3, bit_3);
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum TimerDivideConfigurationValue {
+    Divide1,
+    Divide2,
+    Divide4,
+    Divide8,
+    Divide16,
+    Divide32,
+    Divide64,
+    Divide128,
+}
+
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct EndOfInterrupt(AtomicU32);
+
+impl EndOfInterrupt {
+    pub fn signal(&self) {
+        self.0.store(0, Ordering::Release);
     }
 }
