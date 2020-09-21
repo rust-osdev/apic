@@ -4,6 +4,7 @@
 
 use volatile::Volatile;
 
+pub mod io_apic;
 pub mod registers;
 
 pub struct ApicBase {
