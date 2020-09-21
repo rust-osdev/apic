@@ -6,4 +6,4 @@ edition = "2018"
 
 [dependencies]
 bit_field = "0.10.1"
-volatile = "0.4.0-alpha"
+volatile = "0.4.1"
